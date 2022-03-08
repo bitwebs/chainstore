@@ -1,8 +1,8 @@
-const HypercoreProtocol = require('hypercore-protocol')
+const BitProtocol = require('@web4/bit-protocol')
 const Nanoresource = require('nanoresource/emitter')
-const hypercore = require('hypercore')
-const hypercoreCrypto = require('hypercore-crypto')
-const datEncoding = require('dat-encoding')
+const unichain = require('@web4/unichain')
+const bitwebCrypto = require('@web4/bitweb-crypto')
+const bitwebEncoding = require('@web4/encoding')
 const maybe = require('call-me-maybe')
 
 const RefPool = require('refpool')
@@ -11,10 +11,10 @@ const derivedStorage = require('derived-key-storage')
 const raf = require('random-access-file')
 
 const MASTER_KEY_FILENAME = 'master_key'
-const NAMESPACE = 'corestore'
+const NAMESPACE = 'chainstore'
 const NAMESPACE_SEPERATOR = ':'
 
-class InnerCorestore extends Nanoresource {
+class InnerChainstore extends Nanoresource {
   constructor (storage, opts = {}) {
     super()
 
@@ -27,8 +27,8 @@ class InnerCorestore extends Nanoresource {
     this._replicationStreams = []
     this.cache = new RefPool({
       maxSize: opts.cacheSize || 1000,
-      close: core => {
-        core.close(err => {
+      close: chain => {
+        chain.close(err => {
           if (err) this.emit('error', err)
         })
       }
@@ -36,9 +36,9 @@ class InnerCorestore extends Nanoresource {
 
     // Generated in _open
     this._masterKey = opts.masterKey || null
-    this._id = hypercoreCrypto.randomBytes(8)
+    this._id = bitwebCrypto.randomBytes(8)
 
-    // As discussed in https://github.com/andrewosh/corestore/issues/20
+    // As discussed in https://github.com/andrewosh/chainstore/issues/20
     this.setMaxListeners(0)
   }
 
@@ -50,7 +50,7 @@ class InnerCorestore extends Nanoresource {
     keyStorage.stat((err, st) => {
       if (err && err.code !== 'ENOENT') return cb(err)
       if (err || st.size < 32) {
-        this._masterKey = hypercoreCrypto.randomBytes(32)
+        this._masterKey = bitwebCrypto.randomBytes(32)
         return keyStorage.write(0, this._masterKey, err => {
           if (err) return cb(err)
           keyStorage.close(cb)
@@ -71,8 +71,8 @@ class InnerCorestore extends Nanoresource {
     }
     if (!this.cache.size) return process.nextTick(cb, null)
     let remaining = this.cache.size
-    for (const { value: core } of this.cache.entries.values()) {
-      core.close(err => {
+    for (const { value: chain } of this.cache.entries.values()) {
+      chain.close(err => {
         if (err) error = err
         if (!--remaining) {
           if (error) return cb(error)
@@ -88,11 +88,11 @@ class InnerCorestore extends Nanoresource {
     dkey = encodeKey(dkey)
     if (this.cache.has(dkey)) return process.nextTick(cb, null, true)
 
-    const coreStorage = this.storage([dkey.slice(0, 2), dkey.slice(2, 4), dkey, 'key'].join('/'))
+    const chainStorage = this.storage([dkey.slice(0, 2), dkey.slice(2, 4), dkey, 'key'].join('/'))
 
-    coreStorage.read(0, 32, (err, key) => {
+    chainStorage.read(0, 32, (err, key) => {
       if (err) return cb(err)
-      coreStorage.close(err => {
+      chainStorage.close(err => {
         if (err) return cb(err)
         if (!key) return cb(null, false)
         return cb(null, true)
@@ -100,17 +100,17 @@ class InnerCorestore extends Nanoresource {
     })
   }
 
-  _injectIntoReplicationStreams (core) {
+  _injectIntoReplicationStreams (chain) {
     for (const { stream, opts } of this._replicationStreams) {
-      this._replicateCore(false, core, stream, { ...opts })
+      this._replicateChain(false, chain, stream, { ...opts })
     }
   }
 
-  _replicateCore (isInitiator, core, mainStream, opts) {
-    if (!core) return
-    core.ready(function (err) {
+  _replicateChain (isInitiator, chain, mainStream, opts) {
+    if (!chain) return
+    chain.ready(function (err) {
       if (err) return
-      core.replicate(isInitiator, {
+      chain.replicate(isInitiator, {
         ...opts,
         stream: mainStream
       })
@@ -123,45 +123,45 @@ class InnerCorestore extends Nanoresource {
 
   _generateKeyPair (name) {
     if (typeof name === 'string') name = Buffer.from(name)
-    else if (!name) name = hypercoreCrypto.randomBytes(32)
+    else if (!name) name = bitwebCrypto.randomBytes(32)
 
     const seed = this._deriveSecret(NAMESPACE, name)
 
-    const keyPair = hypercoreCrypto.keyPair(seed)
-    const discoveryKey = hypercoreCrypto.discoveryKey(keyPair.publicKey)
+    const keyPair = bitwebCrypto.keyPair(seed)
+    const discoveryKey = bitwebCrypto.discoveryKey(keyPair.publicKey)
     return { name, publicKey: keyPair.publicKey, secretKey: keyPair.secretKey, discoveryKey }
   }
 
-  _generateKeys (coreOpts) {
-    if (!coreOpts) coreOpts = {}
-    if (typeof coreOpts === 'string') coreOpts = Buffer.from(coreOpts, 'hex')
-    if (Buffer.isBuffer(coreOpts)) coreOpts = { key: coreOpts }
+  _generateKeys (chainOpts) {
+    if (!chainOpts) chainOpts = {}
+    if (typeof chainOpts === 'string') chainOpts = Buffer.from(chainOpts, 'hex')
+    if (Buffer.isBuffer(chainOpts)) chainOpts = { key: chainOpts }
 
-    if (coreOpts.keyPair) {
-      const publicKey = coreOpts.keyPair.publicKey
-      const secretKey = coreOpts.keyPair.secretKey
+    if (chainOpts.keyPair) {
+      const publicKey = chainOpts.keyPair.publicKey
+      const secretKey = chainOpts.keyPair.secretKey
       return {
         publicKey,
         secretKey,
-        discoveryKey: hypercoreCrypto.discoveryKey(publicKey),
+        discoveryKey: bitwebCrypto.discoveryKey(publicKey),
         name: null
       }
     }
-    if (coreOpts.key) {
-      const publicKey = decodeKey(coreOpts.key)
+    if (chainOpts.key) {
+      const publicKey = decodeKey(chainOpts.key)
       return {
         publicKey,
         secretKey: null,
-        discoveryKey: hypercoreCrypto.discoveryKey(publicKey),
+        discoveryKey: bitwebCrypto.discoveryKey(publicKey),
         name: null
       }
     }
-    if (coreOpts.default || coreOpts.name) {
-      if (!coreOpts.name) throw new Error('If the default option is set, a name must be specified.')
-      return this._generateKeyPair(coreOpts.name)
+    if (chainOpts.default || chainOpts.name) {
+      if (!chainOpts.name) throw new Error('If the default option is set, a name must be specified.')
+      return this._generateKeyPair(chainOpts.name)
     }
-    if (coreOpts.discoveryKey) {
-      const discoveryKey = decodeKey(coreOpts.discoveryKey)
+    if (chainOpts.discoveryKey) {
+      const discoveryKey = decodeKey(chainOpts.discoveryKey)
       return {
         publicKey: null,
         secretKey: null,
@@ -174,24 +174,24 @@ class InnerCorestore extends Nanoresource {
 
   // Public Methods
 
-  isLoaded (coreOpts) {
-    const generatedKeys = this._generateKeys(coreOpts)
+  isLoaded (chainOpts) {
+    const generatedKeys = this._generateKeys(chainOpts)
     return this.cache.has(encodeKey(generatedKeys.discoveryKey))
   }
 
-  isExternal (coreOpts) {
-    const generatedKeys = this._generateKeys(coreOpts)
+  isExternal (chainOpts) {
+    const generatedKeys = this._generateKeys(chainOpts)
     const entry = this._cache.entry(encodeKey(generatedKeys.discoveryKey))
     if (!entry) return false
     return entry.refs !== 0
   }
 
-  get (coreOpts = {}) {
-    if (!this.opened) throw new Error('Corestore.ready must be called before get.')
+  get (chainOpts = {}) {
+    if (!this.opened) throw new Error('Chainstore.ready must be called before get.')
 
     const self = this
 
-    const generatedKeys = this._generateKeys(coreOpts)
+    const generatedKeys = this._generateKeys(chainOpts)
     const { publicKey, discoveryKey, secretKey } = generatedKeys
     const id = encodeKey(discoveryKey)
 
@@ -216,49 +216,49 @@ class InnerCorestore extends Nanoresource {
     })
 
     const cacheOpts = { ...this.opts.cache }
-    if (coreOpts.cache) {
-      if (coreOpts.cache.data === false) delete cacheOpts.data
-      if (coreOpts.cache.tree === false) delete cacheOpts.tree
+    if (chainOpts.cache) {
+      if (chainOpts.cache.data === false) delete cacheOpts.data
+      if (chainOpts.cache.tree === false) delete cacheOpts.tree
     }
     if (cacheOpts.data) cacheOpts.data = cacheOpts.data.namespace()
     if (cacheOpts.tree) cacheOpts.tree = cacheOpts.tree.namespace()
 
-    const core = hypercore(name => {
+    const chain = unichain(name => {
       if (name === 'key') return keyStorage.key
       if (name === 'secret_key') return keyStorage.secretKey
       return createStorage(name)
     }, publicKey, {
       ...this.opts,
-      ...coreOpts,
+      ...chainOpts,
       cache: cacheOpts,
       createIfMissing: !!publicKey
     })
 
-    this.cache.set(id, core)
-    core.ifAvailable.wait()
+    this.cache.set(id, chain)
+    chain.ifAvailable.wait()
 
     var errored = false
-    core.once('error', onerror)
-    core.once('ready', onready)
-    core.once('close', onclose)
+    chain.once('error', onerror)
+    chain.once('ready', onready)
+    chain.once('close', onclose)
 
-    return core
+    return chain
 
     function onready () {
       if (errored) return
-      self.emit('feed', core, coreOpts)
-      core.removeListener('error', onerror)
-      self._injectIntoReplicationStreams(core)
+      self.emit('feed', chain, chainOpts)
+      chain.removeListener('error', onerror)
+      self._injectIntoReplicationStreams(chain)
       // TODO: nexttick here needed? prob not, just legacy
-      process.nextTick(() => core.ifAvailable.continue())
+      process.nextTick(() => chain.ifAvailable.continue())
     }
 
     function onerror (err) {
       errored = true
-      core.ifAvailable.continue()
+      chain.ifAvailable.continue()
       self.cache.delete(id)
       if (err.unknownKeyPair) {
-        // If an error occurs during creation by discovery key, then that core does not exist on disk.
+        // If an error occurs during creation by discovery key, then that chain does not exist on disk.
         // TODO: This should not throw, but should propagate somehow.
       }
     }
@@ -272,15 +272,15 @@ class InnerCorestore extends Nanoresource {
     }
   }
 
-  replicate (isInitiator, cores, replicationOpts = {}) {
+  replicate (isInitiator, chains, replicationOpts = {}) {
     const self = this
 
     const finalOpts = { ...this.opts, ...replicationOpts }
-    const mainStream = replicationOpts.stream || new HypercoreProtocol(isInitiator, { ...finalOpts })
+    const mainStream = replicationOpts.stream || new BitProtocol(isInitiator, { ...finalOpts })
     var closed = false
 
-    for (const core of cores) {
-      this._replicateCore(isInitiator, core, mainStream, { ...finalOpts })
+    for (const chain of chains) {
+      this._replicateChain(isInitiator, chain, mainStream, { ...finalOpts })
     }
 
     mainStream.on('discovery-key', ondiscoverykey)
@@ -294,12 +294,12 @@ class InnerCorestore extends Nanoresource {
     return mainStream
 
     function ondiscoverykey (dkey) {
-      // Get will automatically add the core to all replication streams.
+      // Get will automatically add the chain to all replication streams.
       self._checkIfExists(dkey, (err, exists) => {
         if (closed) return
         if (err || !exists) return mainStream.close(dkey)
-        const passiveCore = self.get({ discoveryKey: dkey })
-        self._replicateCore(false, passiveCore, mainStream, { ...finalOpts })
+        const passiveChain = self.get({ discoveryKey: dkey })
+        self._replicateChain(false, passiveChain, mainStream, { ...finalOpts })
       })
     }
 
@@ -312,19 +312,19 @@ class InnerCorestore extends Nanoresource {
   }
 }
 
-class Corestore extends Nanoresource {
+class Chainstore extends Nanoresource {
   constructor (storage, opts = {}) {
     super()
 
     this.storage = storage
     this.name = opts.name || 'default'
-    this.inner = opts.inner || new InnerCorestore(storage, opts)
+    this.inner = opts.inner || new InnerChainstore(storage, opts)
     this.cache = this.inner.cache
-    this.store = this // Backwards-compat for NamespacedCorestore
+    this.store = this // Backwards-compat for NamespacedChainstore
 
     this._parent = opts.parent
     this._isNamespaced = !!opts.name
-    this._openedCores = new Map()
+    this._openedChains = new Map()
 
     const onfeed = feed => this.emit('feed', feed)
     const onerror = err => this.emit('error', err)
@@ -354,7 +354,7 @@ class Corestore extends Nanoresource {
   _close (cb) {
     this._unlisten()
     if (!this._parent) return this.inner.close(cb)
-    for (const dkey of this._openedCores) {
+    for (const dkey of this._openedChains) {
       this.cache.decrement(dkey)
     }
     return process.nextTick(cb, null)
@@ -362,32 +362,32 @@ class Corestore extends Nanoresource {
 
   // Private Methods
 
-  _maybeIncrement (core) {
-    const id = encodeKey(core.discoveryKey)
-    if (this._openedCores.has(id)) return
-    this._openedCores.set(id, core)
+  _maybeIncrement (chain) {
+    const id = encodeKey(chain.discoveryKey)
+    if (this._openedChains.has(id)) return
+    this._openedChains.set(id, chain)
     this.cache.increment(id)
   }
 
   // Public Methods
 
-  get (coreOpts = {}) {
-    if (Buffer.isBuffer(coreOpts)) coreOpts = { key: coreOpts }
-    const core = this.inner.get(coreOpts)
-    this._maybeIncrement(core)
-    return core
+  get (chainOpts = {}) {
+    if (Buffer.isBuffer(chainOpts)) chainOpts = { key: chainOpts }
+    const chain = this.inner.get(chainOpts)
+    this._maybeIncrement(chain)
+    return chain
   }
 
-  default (coreOpts = {}) {
-    if (Buffer.isBuffer(coreOpts)) coreOpts = { key: coreOpts }
-    return this.get({ ...coreOpts, name: this.name })
+  default (chainOpts = {}) {
+    if (Buffer.isBuffer(chainOpts)) chainOpts = { key: chainOpts }
+    return this.get({ ...chainOpts, name: this.name })
   }
 
   namespace (name) {
-    if (!name) name = hypercoreCrypto.randomBytes(32)
+    if (!name) name = bitwebCrypto.randomBytes(32)
     if (Buffer.isBuffer(name)) name = name.toString('hex')
     name = this._isNamespaced ? this.name + NAMESPACE_SEPERATOR + name : name
-    return new Corestore(this.storage, {
+    return new Chainstore(this.storage, {
       inner: this.inner,
       parent: this,
       name
@@ -395,20 +395,20 @@ class Corestore extends Nanoresource {
   }
 
   replicate (isInitiator, opts) {
-    const cores = !this._parent ? allReferenced(this.cache) : this._openedCores.values()
-    return this.inner.replicate(isInitiator, cores, opts)
+    const chains = !this._parent ? allReferenced(this.cache) : this._openedChains.values()
+    return this.inner.replicate(isInitiator, chains, opts)
   }
 
-  isLoaded (coreOpts) {
-    return this.inner.isLoaded(coreOpts)
+  isLoaded (chainOpts) {
+    return this.inner.isLoaded(chainOpts)
   }
 
-  isExternal (coreOpts) {
-    return this.inner.isExternal(coreOpts)
+  isExternal (chainOpts) {
+    return this.inner.isExternal(chainOpts)
   }
 
   list () {
-    return new Map([...this._openedCores])
+    return new Map([...this._openedChains])
   }
 }
 
@@ -436,4 +436,4 @@ function defaultStorage (dir) {
   }
 }
 
-module.exports = Corestore
+module.exports = Chainstore

@@ -1,83 +1,83 @@
 const p = require('path')
 const ram = require('random-access-memory')
 const raf = require('random-access-file')
-const datEncoding = require('dat-encoding')
-const hypercoreCrypto = require('hypercore-crypto')
+const bitwebEncoding = require('@web4/encoding')
+const bitwebCrypto = require('@web4/bitweb-crypto')
 const test = require('tape')
 
-const Corestore = require('..')
+const Chainstore = require('..')
 const {
   runAll,
-  validateCore,
+  validateChain,
   cleanup
 } = require('./helpers')
 
-test('ram-based corestore, different get options', async t => {
+test('ram-based chainstore, different get options', async t => {
   const store1 = await create(ram)
-  const core1 = store1.default()
-  var core2, core3, core4, core5, core6
+  const chain1 = store1.default()
+  var chain2, chain3, chain4, chain5, chain6
 
   await runAll([
-    cb => core1.ready(cb),
-    cb => core1.append('hello', cb),
+    cb => chain1.ready(cb),
+    cb => chain1.append('hello', cb),
     cb => {
       // Buffer arg
-      core2 = store1.get(core1.key)
-      return core2.ready(cb)
+      chain2 = store1.get(chain1.key)
+      return chain2.ready(cb)
     },
     cb => {
       // Object arg
-      core3 = store1.get({ key: core1.key })
-      return core3.ready(cb)
+      chain3 = store1.get({ key: chain1.key })
+      return chain3.ready(cb)
     },
     cb => {
       // Discovery key option
-      core4 = store1.get({ discoveryKey: core1.discoveryKey })
-      return core4.ready(cb)
+      chain4 = store1.get({ discoveryKey: chain1.discoveryKey })
+      return chain4.ready(cb)
     },
     cb => {
       // String option
-      core5 = store1.get({ key: datEncoding.encode(core1.key) })
-      return core5.ready(cb)
+      chain5 = store1.get({ key: bitwebEncoding.encode(chain1.key) })
+      return chain5.ready(cb)
     },
     cb => {
       // Custom keypair option
-      core6 = store1.get({ keyPair: { secretKey: core1.secretKey, publicKey: core1.key } })
-      return core6.ready(cb)
+      chain6 = store1.get({ keyPair: { secretKey: chain1.secretKey, publicKey: chain1.key } })
+      return chain6.ready(cb)
     }
   ])
 
-  t.same(core1, core2)
-  t.same(core1, core3)
-  t.same(core1, core4)
-  t.same(core1, core5)
-  t.same(core1, core6)
+  t.same(chain1, chain2)
+  t.same(chain1, chain3)
+  t.same(chain1, chain4)
+  t.same(chain1, chain5)
+  t.same(chain1, chain6)
   t.end()
 })
 
-test('ram-based corestore, simple replication', async t => {
+test('ram-based chainstore, simple replication', async t => {
   const store1 = await create(ram)
   const store2 = await create(ram)
-  const core1 = store1.default()
-  const core2 = store1.get()
-  var core3 = null
-  var core4 = null
+  const chain1 = store1.default()
+  const chain2 = store1.get()
+  var chain3 = null
+  var chain4 = null
 
   await runAll([
-    cb => core1.ready(cb),
-    cb => core2.ready(cb),
+    cb => chain1.ready(cb),
+    cb => chain2.ready(cb),
     cb => {
-      core3 = store2.default(core1.key)
-      return core3.ready(cb)
+      chain3 = store2.default(chain1.key)
+      return chain3.ready(cb)
     },
     cb => {
-      core4 = store2.get({ key: core2.key })
-      return core4.ready(cb)
+      chain4 = store2.get({ key: chain2.key })
+      return chain4.ready(cb)
     },
-    cb => core1.append('hello', cb),
-    cb => core1.append('world', cb),
-    cb => core2.append('cat', cb),
-    cb => core2.append('dog', cb),
+    cb => chain1.append('hello', cb),
+    cb => chain1.append('world', cb),
+    cb => chain2.append('cat', cb),
+    cb => chain2.append('dog', cb),
     cb => {
       const stream = store1.replicate(true)
       stream.pipe(store2.replicate(false)).pipe(stream)
@@ -85,33 +85,33 @@ test('ram-based corestore, simple replication', async t => {
     }
   ])
 
-  await validateCore(t, core3, [Buffer.from('hello'), Buffer.from('world')])
-  await validateCore(t, core4, [Buffer.from('cat'), Buffer.from('dog')])
+  await validateChain(t, chain3, [Buffer.from('hello'), Buffer.from('world')])
+  await validateChain(t, chain4, [Buffer.from('cat'), Buffer.from('dog')])
 
   t.end()
 })
 
-test('ram-based corestore, replicating with different default keys', async t => {
+test('ram-based chainstore, replicating with different default keys', async t => {
   const store1 = await create(ram)
   const store2 = await create(ram)
-  const core1 = store1.default()
-  const core2 = store1.get()
-  var core3 = null
-  var core4 = null
+  const chain1 = store1.default()
+  const chain2 = store1.get()
+  var chain3 = null
+  var chain4 = null
 
   await runAll([
-    cb => core1.ready(cb),
-    cb => core2.ready(cb),
+    cb => chain1.ready(cb),
+    cb => chain2.ready(cb),
     cb => {
-      core3 = store2.default()
-      return core3.ready(cb)
+      chain3 = store2.default()
+      return chain3.ready(cb)
     },
     cb => {
-      core4 = store2.get({ key: core1.key })
-      return core4.ready(cb)
+      chain4 = store2.get({ key: chain1.key })
+      return chain4.ready(cb)
     },
-    cb => core1.append('cat', cb),
-    cb => core1.append('dog', cb),
+    cb => chain1.append('cat', cb),
+    cb => chain1.append('dog', cb),
     cb => {
       const stream = store1.replicate(true)
       stream.pipe(store2.replicate(false)).pipe(stream)
@@ -119,67 +119,67 @@ test('ram-based corestore, replicating with different default keys', async t => 
     }
   ])
 
-  await validateCore(t, core4, [Buffer.from('cat'), Buffer.from('dog')])
+  await validateChain(t, chain4, [Buffer.from('cat'), Buffer.from('dog')])
   t.end()
 })
 
-test('ram-based corestore, sparse replication', async t => {
+test('ram-based chainstore, sparse replication', async t => {
   const store1 = await create(ram, { sparse: true })
   const store2 = await create(ram, { sparse: true })
-  const core1 = store1.default()
-  const core2 = store1.get()
-  var core3 = null
-  var core4 = null
+  const chain1 = store1.default()
+  const chain2 = store1.get()
+  var chain3 = null
+  var chain4 = null
 
   await runAll([
-    cb => core1.ready(cb),
-    cb => core2.ready(cb),
+    cb => chain1.ready(cb),
+    cb => chain2.ready(cb),
     cb => {
-      t.same(core2.sparse, true)
-      t.same(core1.sparse, true)
+      t.same(chain2.sparse, true)
+      t.same(chain1.sparse, true)
       return process.nextTick(cb, null)
     },
     cb => {
-      core3 = store2.default(core1.key)
-      return core3.ready(cb)
+      chain3 = store2.default(chain1.key)
+      return chain3.ready(cb)
     },
     cb => {
-      core4 = store2.get({ key: core2.key })
-      return core4.ready(cb)
+      chain4 = store2.get({ key: chain2.key })
+      return chain4.ready(cb)
     },
     cb => {
       const stream = store1.replicate(true, { live: true })
       stream.pipe(store2.replicate(false, { live: true })).pipe(stream)
       return process.nextTick(cb, null)
     },
-    cb => core1.append('hello', cb),
-    cb => core1.append('world', cb),
-    cb => core2.append('cat', cb),
-    cb => core2.append('dog', cb),
+    cb => chain1.append('hello', cb),
+    cb => chain1.append('world', cb),
+    cb => chain2.append('cat', cb),
+    cb => chain2.append('dog', cb),
     cb => {
-      t.same(core3.length, 0)
-      t.same(core4.length, 0)
+      t.same(chain3.length, 0)
+      t.same(chain4.length, 0)
       return process.nextTick(cb, null)
     }
   ])
 
-  await validateCore(t, core3, [Buffer.from('hello'), Buffer.from('world')])
-  await validateCore(t, core4, [Buffer.from('cat'), Buffer.from('dog')])
+  await validateChain(t, chain3, [Buffer.from('hello'), Buffer.from('world')])
+  await validateChain(t, chain4, [Buffer.from('cat'), Buffer.from('dog')])
   t.end()
 })
 
-test('ram-based corestore, sparse replication with different default keys', async t => {
+test('ram-based chainstore, sparse replication with different default keys', async t => {
   const store1 = await create(ram, { sparse: true })
   const store2 = await create(ram, { sparse: true })
-  const core1 = store1.default()
-  var core3 = null
-  var core4 = null
+  const chain1 = store1.default()
+  var chain3 = null
+  var chain4 = null
 
   await runAll([
-    cb => core1.ready(cb),
+    cb => chain1.ready(cb),
     cb => {
-      core3 = store2.default()
-      return core3.ready(cb)
+      chain3 = store2.default()
+      return chain3.ready(cb)
     },
     cb => {
       const s1 = store1.replicate(true, { live: true })
@@ -187,46 +187,46 @@ test('ram-based corestore, sparse replication with different default keys', asyn
       s1.pipe(s2).pipe(s1)
       return process.nextTick(cb, null)
     },
-    cb => core1.append('cat', cb),
-    cb => core1.append('dog', cb),
+    cb => chain1.append('cat', cb),
+    cb => chain1.append('dog', cb),
     cb => {
-      core4 = store2.get({ key: core1.key })
-      return core4.ready(cb)
+      chain4 = store2.get({ key: chain1.key })
+      return chain4.ready(cb)
     },
     cb => {
-      t.same(core4.length, 0)
-      t.same(core1.length, 2)
+      t.same(chain4.length, 0)
+      t.same(chain1.length, 2)
       return process.nextTick(cb, null)
     }
   ])
 
-  await validateCore(t, core4, [Buffer.from('cat'), Buffer.from('dog')])
+  await validateChain(t, chain4, [Buffer.from('cat'), Buffer.from('dog')])
   t.end()
 })
 
-test('raf-based corestore, simple replication', async t => {
+test('raf-based chainstore, simple replication', async t => {
   const store1 = await create(path => raf(p.join('store1', path)))
   const store2 = await create(path => raf(p.join('store2', path)))
-  const core1 = store1.default()
-  const core2 = store1.get()
-  var core3 = null
-  var core4 = null
+  const chain1 = store1.default()
+  const chain2 = store1.get()
+  var chain3 = null
+  var chain4 = null
 
   await runAll([
-    cb => core1.ready(cb),
-    cb => core2.ready(cb),
+    cb => chain1.ready(cb),
+    cb => chain2.ready(cb),
     cb => {
-      core3 = store2.default({ key: core1.key })
-      return core3.ready(cb)
+      chain3 = store2.default({ key: chain1.key })
+      return chain3.ready(cb)
     },
     cb => {
-      core4 = store2.get({ key: core2.key })
-      return core4.ready(cb)
+      chain4 = store2.get({ key: chain2.key })
+      return chain4.ready(cb)
     },
-    cb => core1.append('hello', cb),
-    cb => core1.append('world', cb),
-    cb => core2.append('cat', cb),
-    cb => core2.append('dog', cb),
+    cb => chain1.append('hello', cb),
+    cb => chain1.append('world', cb),
+    cb => chain2.append('cat', cb),
+    cb => chain2.append('dog', cb),
     cb => {
       setImmediate(() => {
         const stream = store1.replicate(true)
@@ -236,81 +236,81 @@ test('raf-based corestore, simple replication', async t => {
     }
   ])
 
-  await validateCore(t, core3, [Buffer.from('hello'), Buffer.from('world')])
-  await validateCore(t, core4, [Buffer.from('cat'), Buffer.from('dog')])
+  await validateChain(t, chain3, [Buffer.from('hello'), Buffer.from('world')])
+  await validateChain(t, chain4, [Buffer.from('cat'), Buffer.from('dog')])
   await cleanup(['store1', 'store2'])
   t.end()
 })
 
-test('raf-based corestore, close and reopen', async t => {
+test('raf-based chainstore, close and reopen', async t => {
   var store = await create('test-store')
-  var firstCore = store.default()
-  var reopenedCore = null
+  var firstChain = store.default()
+  var reopenedChain = null
 
   await runAll([
-    cb => firstCore.ready(cb),
-    cb => firstCore.append('hello', cb),
+    cb => firstChain.ready(cb),
+    cb => firstChain.append('hello', cb),
     cb => store.close(cb),
     cb => {
-      t.true(firstCore.closed)
+      t.true(firstChain.closed)
       return process.nextTick(cb, null)
     },
     cb => {
       create('test-store').then(store => {
-        reopenedCore = store.default()
-        return reopenedCore.ready(cb)
+        reopenedChain = store.default()
+        return reopenedChain.ready(cb)
       })
     }
   ])
 
-  await validateCore(t, reopenedCore, [Buffer.from('hello')])
+  await validateChain(t, reopenedChain, [Buffer.from('hello')])
   await cleanup(['test-store'])
   t.end()
 })
 
-test('raf-based corestore, close and reopen with keypair option', async t => {
+test('raf-based chainstore, close and reopen with keypair option', async t => {
   var store = await create('test-store')
-  const keyPair = hypercoreCrypto.keyPair()
-  var firstCore = store.get({ keyPair })
-  var reopenedCore = null
+  const keyPair = bitwebCrypto.keyPair()
+  var firstChain = store.get({ keyPair })
+  var reopenedChain = null
 
   await runAll([
-    cb => firstCore.ready(cb),
-    cb => firstCore.append('hello', cb),
+    cb => firstChain.ready(cb),
+    cb => firstChain.append('hello', cb),
     cb => store.close(cb),
     cb => {
-      t.true(firstCore.closed)
+      t.true(firstChain.closed)
       return process.nextTick(cb, null)
     },
     cb => {
       create('test-store').then(store => {
-        reopenedCore = store.get({ key: keyPair.publicKey })
-        return reopenedCore.ready(cb)
+        reopenedChain = store.get({ key: keyPair.publicKey })
+        return reopenedChain.ready(cb)
       })
     }
   ])
 
-  await validateCore(t, reopenedCore, [Buffer.from('hello')])
-  t.true(reopenedCore.writable)
+  await validateChain(t, reopenedChain, [Buffer.from('hello')])
+  t.true(reopenedChain.writable)
 
   await cleanup(['test-store'])
   t.end()
 })
 
-test('live replication with an additional core', async t => {
+test('live replication with an additional chain', async t => {
   const store1 = await create(ram)
   const store2 = await create(ram)
 
-  const core1 = store1.default()
-  var core2 = null
-  var core3 = null
-  var core4 = null
+  const chain1 = store1.default()
+  var chain2 = null
+  var chain3 = null
+  var chain4 = null
 
   await runAll([
-    cb => core1.ready(cb),
+    cb => chain1.ready(cb),
     cb => {
-      core3 = store2.default({ key: core1.key })
-      return core3.ready(cb)
+      chain3 = store2.default({ key: chain1.key })
+      return chain3.ready(cb)
     },
     cb => {
       const stream = store1.replicate(true, { live: true })
@@ -318,22 +318,22 @@ test('live replication with an additional core', async t => {
       return cb(null)
     },
     cb => {
-      core2 = store1.get()
-      return core2.ready(cb)
+      chain2 = store1.get()
+      return chain2.ready(cb)
     },
     cb => {
-      core4 = store2.get(core2.key)
-      return core4.ready(cb)
+      chain4 = store2.get(chain2.key)
+      return chain4.ready(cb)
     },
-    cb => core2.append('hello', cb),
-    cb => core2.append('world', cb)
+    cb => chain2.append('hello', cb),
+    cb => chain2.append('world', cb)
   ])
 
-  await validateCore(t, core4, [Buffer.from('hello'), Buffer.from('world')])
+  await validateChain(t, chain4, [Buffer.from('hello'), Buffer.from('world')])
   t.end()
 })
 
-test('namespaced corestores use separate default keys', async t => {
+test('namespaced chainstores use separate default keys', async t => {
   const store1 = await create(ram)
   const store2 = store1.namespace('store2')
   const store3 = store1.namespace('store3')
@@ -349,7 +349,7 @@ test('namespaced corestores use separate default keys', async t => {
   t.end()
 })
 
-test('namespaced corestores will not increment reference multiple times', async t => {
+test('namespaced chainstores will not increment reference multiple times', async t => {
   const store1 = await create(ram)
   const store2 = store1.namespace('store2')
   const store3 = store1.namespace('store3')
@@ -373,7 +373,7 @@ test('namespaced corestores will not increment reference multiple times', async 
   t.end()
 })
 
-test('namespaced corestores can be nested', async t => {
+test('namespaced chainstores can be nested', async t => {
   const store1 = await create(ram)
   const store2 = store1.namespace('store2')
   const store1a = store1.namespace('a')
@@ -396,27 +396,27 @@ test('namespaced corestores can be nested', async t => {
 
 test('caching works correctly when reopening by discovery key', async t => {
   var store = await create('test-store')
-  var firstCore = store.default()
+  var firstChain = store.default()
   var discoveryKey = null
-  var reopenedCore = null
+  var reopenedChain = null
 
   await runAll([
-    cb => firstCore.ready(cb),
+    cb => firstChain.ready(cb),
     cb => {
-      discoveryKey = firstCore.discoveryKey
+      discoveryKey = firstChain.discoveryKey
       return cb(null)
     },
-    cb => firstCore.append('hello', cb),
+    cb => firstChain.append('hello', cb),
     cb => store.close(cb),
     cb => {
-      t.true(firstCore.closed)
+      t.true(firstChain.closed)
       return process.nextTick(cb, null)
     },
     cb => {
       create('test-store').then(reopenedStore => {
         store = reopenedStore
-        reopenedCore = store.get({ discoveryKey })
-        return reopenedCore.ready(cb)
+        reopenedChain = store.get({ discoveryKey })
+        return reopenedChain.ready(cb)
       })
     },
     cb => {
@@ -426,19 +426,19 @@ test('caching works correctly when reopening by discovery key', async t => {
     }
   ])
 
-  await validateCore(t, reopenedCore, [Buffer.from('hello')])
+  await validateChain(t, reopenedChain, [Buffer.from('hello')])
   await cleanup(['test-store'])
   t.end()
 })
 
-test('can check if cores are loaded', async t => {
+test('can check if chains are loaded', async t => {
   const store = await create(ram)
   await store.ready()
 
   const feed1 = store.default()
   const feed2 = store.get()
-  const badKey = hypercoreCrypto.randomBytes(32)
-  const badDiscoveryKey = hypercoreCrypto.discoveryKey(badKey)
+  const badKey = bitwebCrypto.randomBytes(32)
+  const badDiscoveryKey = bitwebCrypto.discoveryKey(badKey)
 
   t.true(store.isLoaded({ key: feed1.key }))
   t.true(store.isLoaded({ discoveryKey: feed1.discoveryKey }))
@@ -449,37 +449,37 @@ test('can check if cores are loaded', async t => {
   t.end()
 })
 
-test('top-level corestore replicates all opened cores', async t => {
+test('top-level chainstore replicates all opened chains', async t => {
   const store1 = await create(ram)
   const store2 = await create(ram)
 
-  const core1 = store1.default()
+  const chain1 = store1.default()
   const ns1 = store1.namespace()
-  var core2 = ns1.default()
-  var core3 = null
+  var chain2 = ns1.default()
+  var chain3 = null
 
   await runAll([
-    cb => core1.ready(cb),
-    cb => core2.ready(cb),
+    cb => chain1.ready(cb),
+    cb => chain2.ready(cb),
     cb => {
-      // Only replicate the top-level corestore
+      // Only replicate the top-level chainstore
       const stream = store1.replicate(true, { live: true })
       stream.pipe(store2.replicate(false, { live: true })).pipe(stream)
       return cb(null)
     },
     cb => {
-      core3 = store2.get(core2.key)
-      return core3.ready(cb)
+      chain3 = store2.get(chain2.key)
+      return chain3.ready(cb)
     },
-    cb => core2.append('hello', cb),
-    cb => core2.append('world', cb)
+    cb => chain2.append('hello', cb),
+    cb => chain2.append('world', cb)
   ])
 
-  await validateCore(t, core3, [Buffer.from('hello'), Buffer.from('world')])
+  await validateChain(t, chain3, [Buffer.from('hello'), Buffer.from('world')])
   t.end()
 })
 async function create (storage, opts) {
-  const store = new Corestore(storage, opts)
+  const store = new Chainstore(storage, opts)
   await store.ready()
   return store
 }

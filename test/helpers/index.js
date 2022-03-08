@@ -14,9 +14,9 @@ function runAll (ops) {
   })
 }
 
-function validateCore (t, core, values) {
+function validateChain (t, chain, values) {
   const ops = values.map((v, idx) => cb => {
-    core.get(idx, (err, value) => {
+    chain.get(idx, (err, value) => {
       t.error(err, 'no error')
       t.same(value, values[idx])
       return cb(null)
@@ -46,6 +46,6 @@ function delay (ms, cb) {
 module.exports = {
   delay,
   cleanup,
-  validateCore,
+  validateChain,
   runAll
 }
