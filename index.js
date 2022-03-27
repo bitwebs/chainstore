@@ -420,11 +420,11 @@ function * allReferenced (cache) {
 }
 
 function encodeKey (key) {
-  return Buffer.isBuffer(key) ? datEncoding.encode(key) : key
+  return Buffer.isBuffer(key) ? bitEncoding.encode(key) : key
 }
 
 function decodeKey (key) {
-  return (typeof key === 'string') ? datEncoding.decode(key) : key
+  return (typeof key === 'string') ? bitEncoding.decode(key) : key
 }
 
 function defaultStorage (dir) {
