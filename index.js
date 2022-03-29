@@ -1,8 +1,8 @@
 const BitProtocol = require('@web4/bit-protocol')
 const Nanoresource = require('nanoresource/emitter')
 const unichain = require('@web4/unichain')
-const bitwebCrypto = require('@web4/bitweb-crypto')
-const bitwebEncoding = require('@web4/encoding')
+const bitwebCrypto = require('@web4/crypto')
+const bitEncoding = require('@web4/encoding')
 const maybe = require('call-me-maybe')
 
 const RefPool = require('refpool')
